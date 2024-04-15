@@ -1,5 +1,4 @@
 --!nolint SameLineStatement
-local fs = require "@lune/fs"
 local List = require "Lists"
 
 --[[
@@ -104,7 +103,6 @@ local each_works = "LinkedList.each iteration works!\n" do
 end
 
 
-
 local conversions_work = "accurately converts list to {array} and back\n" do 
       local before = {10, 20, "hi", function() end, math.pi, string.char}
       local now_a_list = List.from(before)
@@ -117,18 +115,6 @@ local conversions_work = "accurately converts list to {array} and back\n" do
       print(conversions_work)
 end
 
-
-local sum = List.new(10, 20, 40, 12.5):collect(0, function(v) return v end)
-assert(sum == 82.5)
-local sum2 = List.new(10, 20, 40, 12.5):collect(0)
-assert(sum2 == sum)
-
-assert(List.new(10, 2, 3):collect(0, function(v, i)
-      if i % 2 == 0 then
-            return v
-      end
-      return false
-end) == 13)
 
 -- making sure collect works with into passed along / not default argument returns
 
@@ -154,6 +140,20 @@ local mapping = "all LinkedList:map family methods work!!\n" do
             print(array_filter_mapping)
       end
       
+      local collection_summation = "-  collect and sum/etc are passing" do 
+            local sum = List.new(10, 20, 40, 12.5):collect(0, function(v) return v end)
+            local sum2 = List.new(10, 20, 40, 12.5):collect(0)
+            assert(sum == 82.5)
+            assert(sum2 == sum)
+
+            assert(List.new(10, 2, 3):collect(0, function(v, i)
+                  if i % 2 == 0 then
+                        return v
+                  end
+                  return false
+            end) == 13)
+            print(collection_summation)
+      end
 
       local mapped_pairs = "-  mappairs correctly maps List to dictionaries" do 
             local stats = {
@@ -180,16 +180,15 @@ local mapping = "all LinkedList:map family methods work!!\n" do
       print(mapping)
 end
 
+local sorting_works = "default LinkedList:sort() works" do 
+      local sorty = List.new(2, 3, 7, 5, 5, 2)
+      assert(sorty:sort():string() == "[2, 2, 3, 5, 5, 7]", sorty:string())
+      print(sorting_works)
+end
 
 
-
-
-local sorty = List.new(2, 3, 7, 5, 5, 2)
-assert(sorty:sort():string() == "[2, 2, 3, 5, 5, 7]", sorty:string())
-
-print "passed sorting works too (albeit maybe a bit slow)"
-
-
+-- usage example with Lune runtime 
+local fs = require("@lune/fs")
 local files = List.from(fs.readDir("..")):map(function(v : string)
       if v:match(".luau$") then
             return v
