@@ -60,7 +60,7 @@ local ListInstance = List.ListInstance
       ListInstance.__index = ListInstance
 
       --- O(1) LinkedList appends
-      function ListInstance.append(self : List, ... : any) : ()
+      function ListInstance.append(self : List, ... : any)
             if not self.length then
                   error(`LinkedList TypeError: expected self, got ({self}). Did you use a dot .append instead of :append ?`)
             end
@@ -82,6 +82,7 @@ local ListInstance = List.ListInstance
                   end
                   self.length += 1
             end
+            return self
       end
 
       --- LinkedList:get(target_index: 0 to #LinkedList) and negative indices | aliases: get, at, __call
@@ -215,6 +216,7 @@ local ListInstance = List.ListInstance
                   onEach(self:get(count), count)
                   count += 1
             end
+            return self
       end
 
 
@@ -228,6 +230,29 @@ local ListInstance = List.ListInstance
                   end
             end)
             return mappedList
+      end
+
+      function ListInstance.match(self: List, matcher: string | (term : string) -> (boolean, string?), ... : string)
+            if typeof(matcher) == "string" then
+                  local matchers = {matcher, ...}
+                  return self:map(function(value: string, index: number?)
+                        for _, m in matchers do 
+                              if value:match(m) then
+                                    return value
+                              end
+                        end
+                        return false
+                  end)
+            elseif typeof(matcher) == "function" then
+                  return self:map(function(value: string, index: number?)
+                        local filter, remapped_string = matcher(value)
+                        if filter then
+                              return if remapped_string then remapped_string else filter
+                        end
+                        return false
+                  end)
+            end
+            error("LinkedList: provided matcher must be a string (string pattern) or function")
       end
 
       -- maps an array of [key, value] pairs into a dictionary
