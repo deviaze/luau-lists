@@ -181,11 +181,12 @@ local mapping = "all LinkedList:map family methods work!!\n" do
 
       local match_map_for_strings = "-  correctly handles default match map/filtering" do 
             local matches = List.new("car", "door", ".luaurc", "from", "cat", "carlos", "firefly.luau", "listing", "catching", "caching", "dogathan", "meow")
-            :match("^ca", "luau$", "^d", "ing$", "ow"):pp()
+            :match("^ca", "luau$", "^d", "ing$", "ow")
             :map(function(value: string)
                   return value .. if not value:match("luau") then ".luau" else ""
-            end):print():collect({})
-            print(matches)
+            end):string()
+            assert(matches == "[car.luau, door.luau, cat.luau, carlos.luau, firefly.luau, listing.luau, catching.luau, caching.luau, dogathan.luau, meow.luau]")
+            print(match_map_for_strings)
       end
 end
 
@@ -194,16 +195,3 @@ local sorting_works = "default LinkedList:sort() works" do
       assert(sorty:sort():string() == "[2, 2, 3, 5, 5, 7]", sorty:string())
       print(sorting_works)
 end
-
-
--- usage example with Lune runtime 
-local fs = require("@lune/fs")
-local process = require("@lune/process")
-
-local tests = List.from(fs.readDir("..")):match("spec.luau$")
-      :map(function(file: string)
-            return process.spawn("lune", {"run", file})
-      end)
-:each(function(test: process.SpawnResult)
-      print(`{test.stdout}\n {test.stderr}`)
-end)

@@ -29,6 +29,16 @@ local List = ArrayList.List
 
       List.ListInstance = {}
 
+      --[=[
+            LinkedList default constructor
+            ### Usage:
+            ```lua
+            local List = require("@/path_to/Lists")
+            type List = List.List
+
+            local newListy = List.new(1, 2, 3, "red", "blue", Instance.new("braincell"))
+            ```
+      ]=]
       function List.new(...)
             local newList = setmetatable(List.newList(), List.ListInstance) :: any
             newList.is_empty = true
@@ -41,10 +51,12 @@ local List = ArrayList.List
 
       export type List = typeof(List.new(...))
 
-      --- new LinkedList from {array}
+      --- Constructs LinkedList from `{array-like-table}`
       function List.from(basic_array : {any})
             return List.new(unpack(basic_array))
       end
+
+      --- new `LinkedList` from dictionary table
       function List.frompairs(dictionary: {[any]: any})
             local newPairedList = List.new() 
             for key, value in dictionary do 
@@ -52,14 +64,34 @@ local List = ArrayList.List
             end
             return newPairedList
       end
-      function List.mappairs<K,V, I, J>(dictionary: {[K]: V}, breakup: (key : K, value : V) -> (I, J)) : {[I]: J}
+      
+      --[=[
+            Creates a new dictionary by mapping keys and values from an existing dictionary.
+            ### Usage:
+            ```lua
+            local old_table = {
+                  grandpa = "Jimothy",
+                  grandma = "Samantha",
+            }
+            local new_table = List.mappairs(old_table, function(title, name)
+                return title:match("[..]$"), name.chars(1, 3)
+            end)
+            --- output --> new_table = {pa = "Jim", ma = "Sam"}
+            ```
+      ]=]
+      function List.mappairs<K, V, newKey, newVal>(dictionary: {[K]: V}, breakup: (key : K, value : V) -> (newKey, newVal)) : {[newKey]: newVal}
             return List.frompairs(dictionary):topairs(breakup)
       end
 
 local ListInstance = List.ListInstance
       ListInstance.__index = ListInstance
 
-      --- O(1) LinkedList appends
+      --[=[
+            Appends one or many elements to `LinkedList`.
+            ```lua
+            newListy.append("tortoise")
+            ```
+      ]=]
       function ListInstance.append(self : List, ... : any)
             if not self.length then
                   error(`LinkedList TypeError: expected self, got ({self}). Did you use a dot .append instead of :append ?`)
@@ -85,7 +117,15 @@ local ListInstance = List.ListInstance
             return self
       end
 
-      --- LinkedList:get(target_index: 0 to #LinkedList) and negative indices | aliases: get, at, __call
+      --[=[
+            retreive value at index *(starts at 0)*
+            ```lua
+            local one = newList:get(0) -- gets the number 1 (0th index of array)
+            local one = newList:at(0) -- same 
+            local one = newList(0) -- same
+            local last = newList(-1) -- negative indexes welcome
+            ```
+      ]=]
       function ListInstance.get(self: List, target_index)
             if target_index < 0 then
                   target_index = self.length + target_index -- turn our negatives upside-down :p
@@ -98,7 +138,8 @@ local ListInstance = List.ListInstance
             end
       end
 
-      function ListInstance.at(self: List, ...)
+      --- alias for Linkedlist:get(index: number)
+      function ListInstance.at(self: List, ...: number)
             return self:get(...)
       end
 
@@ -123,12 +164,12 @@ local ListInstance = List.ListInstance
             return node_current
       end
 
-     
       function ListInstance.print(self: List) : List
             print(self:__tostring())
             return self
       end
 
+      --- pretty print for pretty Lists
       function ListInstance.pp(self: List): List
             local output = "[LinkedList:\n"
             local middle = self:collect("", function(v, i)
@@ -153,7 +194,7 @@ local ListInstance = List.ListInstance
             return tostring(self):gsub("LinkedList: ", "")
       end
 
-      --- Array-Like-Table
+      --- Converts LinkedList into regular {Array-Like-Table}. Alias for LinkedList:collect({})
       function ListInstance.table(self: List)
             return self:collect({})
       end
@@ -194,14 +235,40 @@ local ListInstance = List.ListInstance
             end
       end
 
+      --[=[
+            Removes and returns the first value in the LinkedList
+            ```lua
+            local popcorn = List.new("pop", "corn")
+            local pop = popcorn:shift()
+            ```
+      ]=]
       function ListInstance.shift(self: List)
             return self:remove(0)
       end
-
+      
+      --[=[
+            Removes and returns the last value in the LinkedList
+            ```lua
+            local popcorn = List.new("pop", "corn")
+            local corn = popcorn:pop()
+            ```
+      ]=]
       function ListInstance.pop(self: List)
             return self:remove(self.length - 1)
       end
 
+      --[=[
+            ### Iterate through a LinkedList:
+            note that LinkedLists start at index 0, not 1!
+            ```lua
+            local list = List.new("zeroth", "first", "second", "third")
+
+            list:each(function(value, index) 
+                  print(index .. value)
+                  --> "0 .. zeroth" ...
+            end)
+            ```
+      ]=]
       function ListInstance.each(self: List, onEach: (value : any, index : number?) -> (), range : {number?}?)
             local min_index, max_index = 0, self.length
             if range then
@@ -219,11 +286,47 @@ local ListInstance = List.ListInstance
             return self
       end
 
+      --[=[
+            Equivalent to a map + filter. Generates a new `LinkedList` from your function `map`. Filtered by & including all truthy returns. 
 
-      --- Equivalent to a map + filter. Generates a new LinkedList from your function `map`; includes all truthy returns. 
-      function ListInstance.map(self: List, map: (value: any, index: number?) -> (any | nil)) : List
+            ```lua
+            -- examples:
+             -- subtract 1 from all (in new list)
+                  local list = List.new(11, 21, 31, 41, 51, 61)
+
+                  local list_one_less = list:map(function(value: number)
+                        return value - 1
+                  end):print()
+
+             ---> output: "[LinkedList: 10, 20, 30, 40, 50, 60]"
+
+             -- select only evens, subtract 10 from them, and then choose only those < 25
+                  local numbers = List.new(1, 2, 5, 7, 8, 56, 21, 20, 40, 24, 489, 29, 28)
+
+                  local evens_under_25 = numbers:map(function(n: number)
+                        return n % 2 == 0 and (n - 10)
+                  end):map(function(n)
+                        return n < 25 and n
+                  end):print()
+
+             ---> output: "[LinkedList: -8, -2, 10, 14, 18]"
+
+            ```
+      ]=]
+      function ListInstance.map(self: List, map: ((value: any, index: number?) -> (any))?) : List
             local mappedList = List.new()
-            self:each(function(v, i) 
+            map = map or function(v,i)
+                  if not v then return false
+                  elseif typeof(v) == "string" and v:gsub(" ", "") == "" then
+                        return false
+                  elseif v == {} then
+                        return false
+                  end
+                  return v
+            end
+            assert(map, " is a valid function")
+
+            self:each(function(v, i)
                   local result = map(v, i)
                   if result then
                         mappedList:append(result)
@@ -255,37 +358,41 @@ local ListInstance = List.ListInstance
             error("LinkedList: provided matcher must be a string (string pattern) or function")
       end
 
-      -- maps an array of [key, value] pairs into a dictionary
+      --- maps an array of [key, value] pairs into a dictionary
       function ListInstance.topairs(self: List, breakup: (key : any, value : any) -> (any, any))
             local result = {}
             self:each(function(pair, index)
-                  local key, value = pair[1], pair[2]
-                  local new_key, new_value = breakup(key, value)
+                  local new_key, new_value = breakup(pair[1], pair[2])
                   result[new_key] = new_value
             end)
             return result
       end
 
+      type yourFilterFunction <RType> = (value: any, index: number?, result_object: RType?) -> (any)
+
       --- Combines or reduces all values in your List into a single value--you decide. default operations: string: `..=`, number: `+=`, {array}: append `v`
-      function ListInstance.collect<T>(self: List, into : T, reducer: ((value: any, index : number?, into : T?) -> (any | nil))? ) : T
-            local very_default_function = function(v) return v end
-            reducer = reducer or very_default_function
-            self:each(function(v, i)
-                  assert(reducer, "")
-                  local result = reducer(v, i, into)
-                  if result then
-                        if typeof(into) == "string" then
-                              into ..= result
-                        elseif typeof(into) == "number" then
-                              into += result
-                        elseif typeof(into) == "table" then
-                              into[#into + 1] = result
-                        end
+      function ListInstance.collect <ReturnType> (self: List, into: ReturnType, reducer: yourFilterFunction <ReturnType>? ) : ReturnType
+            reducer = reducer or function(v)
+                  return v
+            end
+            assert(reducer, "LinkedList TypeError: invalid reduction/collection function.")
+
+            self:each(function(v, index)
+                  local result = reducer(v, index, into)
+                  if not result then return end 
+
+                  if typeof(into) == "string" then
+                        into  ..= result
+                  elseif typeof(into) == "number" then
+                        into += result
+                  elseif typeof(into) == "table" then
+                        into[#into + 1] = result
                   end
             end)
+            
             return into
       end
-
+      --- returns sum of all elements. Assumes LinkedList[numbers]
       function ListInstance.sum(self: List): number
             return self:collect(0)
       end
