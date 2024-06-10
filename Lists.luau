@@ -1,11 +1,13 @@
 --!strict
--- can't decide on whether Array or List so why not ArrayList fml
+--!nolint LocalShadow
 
+local tf, ptf = require('tf')
 
 --- Parent class for custom typed Arrays and List datatypes 
 local ArrayList = {}
       ArrayList.__index = ArrayList
       ArrayList.List = {}
+      ArrayList.PairedList = {}
 
 local List = ArrayList.List
       List.__index = List
@@ -39,52 +41,106 @@ local List = ArrayList.List
             local newListy = List.new(1, 2, 3, "red", "blue", Instance.new("braincell"))
             ```
       ]=]
-      function List.new(...)
+      function List.new<element>(...: element?)
             local newList = setmetatable(List.newList(), List.ListInstance) :: any
             newList.is_empty = true
             newList.length = 0 -- somehow need these for type inference? 
             for _, arg in {...} do
-                  newList:append(arg) -- please ignore the type error im tired
+                  newList:append(arg)
             end
             return newList :: typeof(setmetatable(List.newList(), List.ListInstance)) -- average typehacks :cries: 
       end
 
-      export type List = typeof(List.new(...))
-
+      export type List<e> = typeof(List.new(...:: e))
       --- Constructs LinkedList from `{array-like-table}`
-      function List.from(basic_array : {any})
-            return List.new(unpack(basic_array))
+      function List.from<element>(array : {element}) : List<element>
+            if array ~= nil then
+                  return List.new(table.unpack(array))
+            else
+                  error("LinkedList.from(array) expected an array-like-table, but was called with no arguments or nil")
+            end
       end
 
-      --- new `LinkedList` from dictionary table
-      function List.frompairs(dictionary: {[any]: any})
-            local newPairedList = List.new() 
-            for key, value in dictionary do 
-                  newPairedList:append({key, value})
-            end
-            return newPairedList
+local PairedList = ArrayList.PairedList
+local PairedListInstance = {}
+      PairedListInstance.__index = PairedListInstance
+      setmetatable(PairedListInstance, List.ListInstance)
+
+--- new `LinkedList` from dictionary table
+function PairedList.from<k,v>(dictionary: {[k]: v})
+      if dictionary == nil then
+            error("PairedList.from(dictionary) expected a table, but was called with no arguments or nil")
       end
       
-      --[=[
-            Creates a new dictionary by mapping keys and values from an existing dictionary.
-            ### Usage:
-            ```lua
-            local old_table = {
-                  grandpa = "Jimothy",
-                  grandma = "Samantha",
-            }
-            local new_table = List.mappairs(old_table, function(title, name)
-                return title:match("[..]$"), name.chars(1, 3)
-            end)
-            --- output --> new_table = {pa = "Jim", ma = "Sam"}
-            ```
-      ]=]
-      function List.mappairs<K, V, newKey, newVal>(dictionary: {[K]: V}, breakup: (key : K, value : V) -> (newKey, newVal)) : {[newKey]: newVal}
-            return List.frompairs(dictionary):topairs(breakup)
+      local newPairedList = List.new() :: any
+      for key, value in dictionary do 
+            newPairedList:append({key, value :: any})
       end
+      -- for k, v in List.ListInstance do 
+      --       if typeof(v) == "function" or k == "internal" then
+      --             if PairedListInstance[k] ~= nil then
+      --                   PairedListInstance[k] = v
+      --             end
+      --       end
+      -- end
+
+      newPairedList = setmetatable(newPairedList, PairedListInstance)
+      return newPairedList :: typeof(setmetatable(List.newList(), PairedListInstance))
+end
+export type PairedList<k, v> = typeof(PairedList.from(...))
+
+function PairedList.mapped<K,V>(dictionary: {[K]:V}, mapper: (key: K, value: V) -> (any?, any?))
+      return PairedList.from(dictionary):map(function(key: K, value: V)
+            local newK, newV = mapper(key, value)
+            if newK and newV then
+                  return newK, newV
+            end
+            return nil
+      end)
+end
+
+
+--[=[
+      Creates a new dictionary by mapping keys and values from an existing dictionary.
+      ### Usage:
+      ```lua
+      local old_table = {
+            grandpa = "Jimothy",
+            grandma = "Samantha",
+      }
+      local new_table = List.remap_dictionary(old_table, function(title, name)
+            return title:match("[..]$"), name.chars(1, 3)
+      end)
+      --- output --> new_table = {pa = "Jim", ma = "Sam"}
+      ```
+]=]
+function PairedList.remap_dictionary<K, V, K2, V2>(dictionary: {[K]: V}, breakup: (key : K, value : V) -> (PairedListPair<K2,V2>?)) : {[K2]: V2}
+      return PairedList.from(dictionary):table(breakup)
+end
 
 local ListInstance = List.ListInstance
       ListInstance.__index = ListInstance
+
+      ListInstance.internal = {}
+
+      function ListInstance.internal._append_value<E>(self: List<E>, value: E)
+            local newNode = List.newNode(value)
+            if self.is_empty then
+                  self.head = newNode
+                  self.first = newNode.value
+                  self.last = newNode.value
+                  self.is_empty = false
+            else
+                  local last_node = self.internal._get_node(self, self.length - 1)
+                  assert(last_node)
+                  last_node.next = newNode
+                  self.last = newNode.value
+            end
+            if not self.length then
+                  print(self)
+            end
+            self.length += 1
+      end
 
       --[=[
             Appends one or many elements to `LinkedList`.
@@ -92,33 +148,18 @@ local ListInstance = List.ListInstance
             newListy.append("tortoise")
             ```
       ]=]
-      function ListInstance.append(self : List, ... : any)
+      function ListInstance.append<E>(self : List<E>, ... : E | {any})
             if not self.length then
                   error(`LinkedList TypeError: expected self, got ({self}). Did you use a dot .append instead of :append ?`)
             end
             for _, value in {...} do
-                  local newNode = List.newNode(value)
-                  if self.is_empty then
-                        self.head = newNode
-                        self.first = newNode.value
-                        self.last = newNode.value
-                        self.is_empty = false
-                  else
-                        local last_node = self:__get_node(self.length - 1)
-                        assert(last_node)
-                        last_node.next = newNode
-                        self.last = newNode.value
-                  end
-                  if not self.length then
-                        print(self)
-                  end
-                  self.length += 1
+                  self.internal._append_value(self, value)
             end
             return self
       end
 
       --[=[
-            retreive value at index *(starts at 0)*
+            retrieve value at index *(starts at 0)*
             ```lua
             local one = newList:get(0) -- gets the number 1 (0th index of array)
             local one = newList:at(0) -- same 
@@ -126,11 +167,11 @@ local ListInstance = List.ListInstance
             local last = newList(-1) -- negative indexes welcome
             ```
       ]=]
-      function ListInstance.get(self: List, target_index)
+      function ListInstance.get<E>(self: List<E>, target_index): E?
             if target_index < 0 then
                   target_index = self.length + target_index -- turn our negatives upside-down :p
             end
-            local node_at_index = self:__get_node(target_index)
+            local node_at_index = self.internal._get_node(self, target_index)
             if node_at_index then 
                   return node_at_index.value
             else
@@ -139,15 +180,19 @@ local ListInstance = List.ListInstance
       end
 
       --- alias for Linkedlist:get(index: number)
-      function ListInstance.at(self: List, ...: number)
+      function ListInstance.at<E>(self: List<E>, ...: number): E?
             return self:get(...)
       end
 
-      function ListInstance.__call(self: List, target_index : number)
-            return self:get(target_index)
-      end
+      -- function ListInstance.__call<E>(self: List<E>, target_index : number): E?
+      -- 	if target_index then
+      --       	return self:get(target_index)
+      --       else
+      --       	return self
+      --       end
+      -- end
 
-      function ListInstance.__get_node(self : List, target_index : number) : Node?
+      function ListInstance.internal._get_node<E>(self : List<E>, target_index : number) : Node?
             if target_index >= self.length then
                   return nil -- index out-of-bounds
             end
@@ -164,43 +209,48 @@ local ListInstance = List.ListInstance
             return node_current
       end
 
-      function ListInstance.print(self: List) : List
+      --- check if value in LinkedList
+      function ListInstance.has<E>(self: List<E>, value: any) : boolean
+            return self:search(function(v)
+                  return v == value
+            end) :: boolean
+      end
+
+      function ListInstance.print<E>(self: List<E>) : List<E>
             print(self:__tostring())
             return self
       end
 
       --- pretty print for pretty Lists
-      function ListInstance.pp(self: List): List
-            local output = "[LinkedList:\n"
-            local middle = self:collect("", function(v, i)
-                  local number_padding = if i < 10 then "0" else ""
-                  return `  [{number_padding}{i}]: {v}\n`
-            end) .. "]"
-            print(output .. middle)
+      function ListInstance.pp<E>(self: List<E>): List<E>
+            local pretty = tf(self:array(), true, {Prefix = "LinkedList", ArrayStartIndex = 0})
+            print(pretty)
             return self
       end
 
-      function ListInstance.__tostring(self: List)
-            return `[LinkedList: {self:collect("", function(element, i)
-                  return `{element}{
-                        if i < self.length - 1 then ", " else ""
-                  }` end)
-            }]`
+      function ListInstance.__tostring<E>(self: List<E>)
+      	return tf(self:array(), nil, {Prefix = "LinkedList", ArrayStartIndex = 0})
       end
 
       --- Conversions
       --- String representation with brackets
-      function ListInstance.string(self : List)
+      function ListInstance.string<E>(self : List<E>)
             return tostring(self):gsub("LinkedList: ", "")
       end
 
       --- Converts LinkedList into regular {Array-Like-Table}. Alias for LinkedList:collect({})
-      function ListInstance.table(self: List)
-            return self:collect({})
+      function ListInstance.array<E>(self: List<E>)
+      	local indexedBy1 = self:collect({})
+      	local result = {}
+      	for index, value in indexedBy1 do
+      		result[index - 1] = value
+      	end
+            -- return result
+            return indexedBy1
       end
 
       --- remove node at index and return value
-      function ListInstance.remove(self: List, target_index: number)
+      function ListInstance.remove<E>(self: List<E>, target_index: number)
             local cached_node = nil :: Node?
             if target_index == 0 then
                   if self.head then
@@ -211,15 +261,15 @@ local ListInstance = List.ListInstance
                         end
                   end
             elseif target_index == self.length - 1 then
-                  cached_node = self:__get_node(self.length - 1)
-                  local last_node = self:__get_node(self.length - 2)
+                  cached_node = self.internal._get_node(self, self.length - 1)
+                  local last_node = self.internal._get_node(self, self.length - 2)
                   if last_node then last_node.next = nil end
                   assert(last_node)
                   self.last = last_node.value
             else
-                  cached_node = self:__get_node(target_index)
-                  local prev_node = self:__get_node(target_index - 1)
-                  local next_node = self:__get_node(target_index + 1)
+                  cached_node = self.internal._get_node(self, target_index)
+                  local prev_node = self.internal._get_node(self, target_index - 1)
+                  local next_node = self.internal._get_node(self, target_index + 1)
                   if prev_node then
                         prev_node.next = next_node
                   end
@@ -242,7 +292,7 @@ local ListInstance = List.ListInstance
             local pop = popcorn:shift()
             ```
       ]=]
-      function ListInstance.shift(self: List)
+      function ListInstance.shift<E>(self: List<E>): E
             return self:remove(0)
       end
       
@@ -253,7 +303,7 @@ local ListInstance = List.ListInstance
             local corn = popcorn:pop()
             ```
       ]=]
-      function ListInstance.pop(self: List)
+      function ListInstance.pop<E>(self: List<E>): E
             return self:remove(self.length - 1)
       end
 
@@ -269,7 +319,7 @@ local ListInstance = List.ListInstance
             end)
             ```
       ]=]
-      function ListInstance.each(self: List, onEach: (value : any, index : number?) -> (), range : {number?}?)
+      function ListInstance.each<E>(self: List<E>, onEach: (value : any, index : number) -> (), range : {number?}?)
             local min_index, max_index = 0, self.length
             if range then
                   if #range == 2 then
@@ -284,6 +334,26 @@ local ListInstance = List.ListInstance
                   count += 1
             end
             return self
+      end
+
+      function ListInstance.search<E>(self: List<E>, query: (value: any, index: number?) -> (any), range: {number?}?): (E?, number?)
+            local min_index, max_index = 0, self.length
+            if range then
+                  if #range == 2 then
+                        min_index, max_index = range[1] :: number, range[2] :: number
+                  elseif #range == 1 then
+                        max_index = range[1] :: number
+                  end
+            end
+            local count = min_index
+            while count < max_index do
+                  local response = query(self:get(count), count)
+                  if response then
+                        return response
+                  end
+                  count += 1
+            end
+            return nil
       end
 
       --[=[
@@ -313,7 +383,7 @@ local ListInstance = List.ListInstance
 
             ```
       ]=]
-      function ListInstance.map(self: List, map: ((value: any, index: number?) -> (any))?) : List
+      function ListInstance.map<E>(self: List<E>, map: ((value: any, index: number) -> (any))?) : List<E>
             local mappedList = List.new()
             map = map or function(v,i)
                   if not v then return false
@@ -335,7 +405,7 @@ local ListInstance = List.ListInstance
             return mappedList
       end
 
-      function ListInstance.match(self: List, matcher: string | (term : string) -> (boolean, string?), ... : string)
+      function ListInstance.match<E>(self: List<E>, matcher: string | (term : string) -> (boolean, string?), ... : string)
             if typeof(matcher) == "string" then
                   local matchers = {matcher, ...}
                   return self:map(function(value: string, index: number?)
@@ -358,20 +428,11 @@ local ListInstance = List.ListInstance
             error("LinkedList: provided matcher must be a string (string pattern) or function")
       end
 
-      --- maps an array of [key, value] pairs into a dictionary
-      function ListInstance.topairs(self: List, breakup: (key : any, value : any) -> (any, any))
-            local result = {}
-            self:each(function(pair, index)
-                  local new_key, new_value = breakup(pair[1], pair[2])
-                  result[new_key] = new_value
-            end)
-            return result
-      end
 
-      type yourFilterFunction <RType> = (value: any, index: number?, result_object: RType?) -> (any)
+      type yourFilterFunction <V,RType> = (value: V, index: number, collector: RType) -> (any?)
 
-      --- Combines or reduces all values in your List into a single value--you decide. default operations: string: `..=`, number: `+=`, {array}: append `v`
-      function ListInstance.collect <ReturnType> (self: List, into: ReturnType, reducer: yourFilterFunction <ReturnType>? ) : ReturnType
+      --- Combines or reduces all values in your List into a single value—you decide. default operations: string: `..=`, number: `+=`, {array}: append `v`
+      function ListInstance.collect<E, ReturnType>(self: List<E>, into: ReturnType, reducer: yourFilterFunction <E, ReturnType>?) : ReturnType
             reducer = reducer or function(v)
                   return v
             end
@@ -393,12 +454,12 @@ local ListInstance = List.ListInstance
             return into
       end
       --- returns sum of all elements. Assumes LinkedList[numbers]
-      function ListInstance.sum(self: List): number
+      function ListInstance.sum(self: List<number>): number
             return self:collect(0)
       end
 
       -- note, this is a sort in place!
-      function ListInstance.sort(self: List, sort_by : ((a: any, b: any) -> (boolean))?): List
+      function ListInstance.sort<E>(self: List<E>, sort_by : ((a: any, b: any) -> (boolean))?): List<E>
             local default_sort = function(a: number, b: number) return b > a end
             sort_by = sort_by or default_sort
             assert(sort_by, "")
@@ -408,7 +469,7 @@ local ListInstance = List.ListInstance
             local changes = 0
             local curr_index, succ_index = 0, 1
             while succ_index < self.length do
-                  local curr, succ = self:__get_node(curr_index), self:__get_node(succ_index)
+                  local curr, succ = self.internal._get_node(self, curr_index), self.internal._get_node(self, succ_index)
                   assert(curr, self:string())
                   assert(succ, self:string())
                   if curr.value ~= succ.value and not sort_by(curr.value, succ.value) then
@@ -425,7 +486,7 @@ local ListInstance = List.ListInstance
                         end
                         changes += 1
                   end
-                  prev = self:__get_node(curr_index)
+                  prev = self.internal._get_node(self, curr_index)
                   curr_index += 1; succ_index += 1
             end
            
@@ -436,36 +497,180 @@ local ListInstance = List.ListInstance
             end
       end
 
+      function PairedListInstance.each<K,V>(self: PairedList<K,V>, for_each: (key: K, value: V, index: number) -> ()) : ()
+            local self = self :: any
+            local self = self :: List<any>
 
-      -- function ListInstance.__index(self, target_index)
-      --       ListInstance.__index = ListInstance
-      --       return ListInstance
-      -- end
+            local i = 0
+            while i < self.length do 
+                  local pair = self:get(i) :: {K & V}
+                  if pair then
+                        local key: K, value: V = pair[1], pair[2]
+                        for_each(key, value, i)
+                  end
+                  i += 1
+            end
+      end
 
-      -- function ListInstance.__index(self : List, target_index : string | number | {number}) : any
-      --       if typeof(target_index) == "number" then
-      --             print(self)
-      --             if target_index >= self.length then
-      --                   return nil -- index out-of-bounds
-      --             end
-      --             local index_current = 0
-      --             local node_current = self.head :: Node
-      --             while index_current < target_index do
-      --                   index_current += 1
-      --                   if node_current.next then
-      --                         node_current = node_current.next
-      --                   else
-      --                         return nil
-      --                   end
-      --             end
-      --             return node_current.value
-      --       elseif typeof(target_index) == "table" then
-      --             print("LinkedList[{number}] not implemented yet")
-      --       end
-      --       return rawget(getmetatable(self), target_index)
-      -- end
-      function ListInstance.__len(self : List)
+      type PairedListPair<K,V> = {[K]: V}
+      function PairedListInstance.append<K, V>(self: PairedList<K,V>, ...: PairedListPair<K,V>)
+            local self = self :: any
+            local self = self :: List<any>
+
+            for _, pair in {...} do
+                  for key, value in pair do 
+                        self.internal._append_value(self, {key, value :: any})
+                  end
+            end
+
+      end
+
+      function PairedListInstance.map<K, V, K2, V2>(self: PairedList<K, V>, map: (key: K, value: V, index: number?) -> (PairedListPair<K2,V2>?)) : PairedList<K2,V2>
+            local mappedList = PairedList.from({}) :: PairedList<K2, V2>
+            assert(map, " is a valid function")
+
+            self:each(function(key, value, i)
+                  local new_pair = map(key, value, i)
+                  if new_pair then
+                        mappedList:append(new_pair)
+                  end
+            end)
+            return mappedList
+      end
+      --- maps a PairedList into a dictionary
+      function PairedListInstance.table<K, V, K2, V2>(self: PairedList<K,V>, breakup: ((key : K, value : V, index: number) -> (PairedListPair<K2,V2>?))?): {[K2]: V2}
+            local result = {}
+            local mapper : (K, V) -> (PairedListPair<K2,V2>?) = breakup or function(k, v)
+                  return {[k] = v}
+            end
+            assert(mapper, "splitting function must be provided")
+            self:each(function(key: K, value: V, i: number)
+                  local new_pair = mapper(key, value, i)
+                  if new_pair then
+                        for new_key, new_value in new_pair do 
+                              result[new_key] = new_value
+                        end
+                  end
+            end)
+            return result
+      end
+
+      --[=[
+            Remap each value in a PairedList.
+
+            ```lua
+            local animals = PairedList.from {
+                  water = List.new("manatees", "dolphins", "sea otters"),
+                  land = List.new("dogs", "cats", "elephants")
+            }
+            
+            local animals_count = animals:map_values(function(habitat: string, animals: List<string>)
+                  return animals:collect({}, function(animal: string, _, current: {[string]: number})
+                        local initial_count = 10
+                        if habitat == "land" then
+                              initial_count *= 2
+                        elseif habitat == "water" then
+                              initial_count -= 5 -- marine mammals are endangered y'all
+                        end
+                        if animal ~= "dolphins" then
+                              current[animal] = initial_count
+                        end
+                        return nil
+                  end)
+            end)
+
+            animals_count:each(function(habitat, count_by_animal)
+                  print(`{habitat}:`)
+                  print(count_by_animal)
+            end)
+
+            --[[
+                  water:
+                  { manatees = 5, ["sea otters"] = 5 }
+                  land:
+                  { dogs = 20, cats = 20, elephants = 20 }
+            ]]
+
+            ```
+      ]=]
+      function PairedListInstance.map_values<K, V, V2>(self: PairedList<K,V>, mapper: (key: K, value: V) -> (V2?)): PairedList<K, V2>
+            return self:map(function(key: K, value: V)
+                  local result = mapper(key, value)
+                  if result then
+                        return {[key] = result}
+                  end
+                  return nil
+            end)
+      end
+
+      --[=[
+            Allows you to remap the array values in a `PairedList of Lists or arrays`.
+            
+            the array portion can be a regular {array} or a List!
+            
+            ```lua
+            local arrays_by_key = {
+                  part1 = {0, 1, 2, 3, 4},
+                  part2 = {5, 5, 6, 9}
+            }
+            local remapped = PairedList.from(arrays_by_key):remap_array_values(function(value: number, _, _)
+                  return value + 2
+            end)
+
+            remapped:each(function(key, value)
+                  print(key, value)
+            end)
+
+            --[[
+                  part1 {2, 3, 4, 5, 6}
+                  part2 {7, 7, 8, 11}
+            ]]
+            ```
+      ]=]
+      function PairedListInstance.remap_array_values<K, V, VinA, V2inA>(self: PairedList<K, ({VinA} | List<VinA>)>, remapper: (value_in_array: VinA, array_index: number, outer_key: K) -> (V2inA?)) : PairedList<K, V>
+            return self:map(function(outer_key: K, array_or_list: any)
+                  if array_or_list.length then
+                        local new_value = array_or_list :: List<VinA>
+                        return {[outer_key] = new_value:map(function(old_value: VinA, inner_index)
+                              return remapper(old_value, inner_index, outer_key)
+                        end)}
+                  elseif typeof(array_or_list) == "table" then
+                        local result = {}
+                        for i, v in array_or_list :: {VinA} do
+                              local new_value = remapper(v, i, outer_key)
+                              if new_value then
+                                    table.insert(result, new_value)
+                              end
+                        end
+                        return {[outer_key] = result}
+                  end
+                  error("PairedList: recieved invalid inner array type. PairedList:remap_array_values must remap either a List<element> or a regular table-like array {element}.")
+            end :: (K, V) -> (PairedListPair<K, List<V2inA> | {V2inA}>))
+      end
+     
+      local function pairedListIndexMapper<K, V>(key: K, value: V, index: number)
+            local newKey = "[" .. tostring(index) .. "]: " .. (
+            	if typeof(key) ~= "string" then
+            		typeof(key) .. "(" .. tostring(key) .. ")"
+            	else key
+            )
+            return {[index + 1] = {key = key, val = value}}
+      end
+      
+      function PairedListInstance.print<K, V>(self: PairedList<K, V>) : PairedList<K,V>
+      	print(tf(self:table(pairedListIndexMapper), false, {Prefix = "PairedList", ArrayStartIndex = 0}))
+      	return self
+      end
+      function PairedListInstance.pp<K, V>(self: PairedList<K, V>) : PairedList<K,V>
+      	print(tf(self:table(pairedListIndexMapper), true, {Prefix = "PairedList", ArrayStartIndex = 0}))
+      	return self
+      end
+      function PairedListInstance.__tostring<K, V>(self: PairedList<K, V>) : string
+      	return tf(self:table(), false, {Prefix = "PairedList"})
+      end
+
+      function ListInstance.__len<E>(self : List<E>): number
             return self.length
       end
 
-return List
+return ArrayList
