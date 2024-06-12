@@ -1,31 +1,29 @@
 # The Luau Lists
 
 ### Oh yeah, a linked list right?
-Yep, a perfectly safe, healthy, and actually relatively typesafe pure Luau Typed LinkedList... with more coming (eventually)
+Yep, perfectly safe, healthy, and actually relatively typesafe pure Luau Typed LinkedLists... with more coming (eventually)
 
 ## Features
-- easy as sin install and usage -- copy and paste and I'll eventually come out with a lune autoupdater
-- extremely ergonomic ruby-inspired functional API WITH TYPES :p
+- LinkedLists for arrays and PairedLists for dictionaries
+- ergonomic ruby-inspired functional API WITH TYPES :p
 - extremely chainable
-- ~~did i mention 0-indexed~~
 - like manipulating lists and like --!strict? don't look any farther.
-- let me know how y'all like dependency management so i can figure out ez deployment
+- ~~did i mention 0-indexed~~
 
-## api
+Please note this README may be outdated and doesn't show all available methods.
+Use VSCode inline hints (or read Lists.luau) for the most complete documentation.
+## LinkedList Api:
 ```luau
 -- creating:
 local newList = List.new(1, "all", "values", function() return "ok" end), "end")
 local fromArray = List.from({1, 2, 3, 4, 5})
-local fromTable = List.frompairs({key = "value1", key2 = "val2"})
 
 -- adding vals:
-fromArray.append(6, 7, 8)
+fromArray:append(6, 7, 8)
 
--- accessing (3 aliases)
-local one = newList:get(0) -- gets the number 1 (0th index of array)
-local one = newList:at(0) -- same 
-local one = newList(0) -- same
-local last = newList(-1) -- negative indexes welcome
+-- indexing
+local one = newList:get(0) -- gets 0th index of the LinkedList
+local one = newList:at(0) -- same
 
 -- note that atm indexing[i] does not work because i'd have to sacrifice autocomplete to get newArray[index] to work without causing massive havoc
 local one = newList.first 
@@ -33,18 +31,18 @@ local ennd = newList.last
 
 -- iterating
 
-LinkedList:each(function(value: any, index: number?) : List
-    -- like a for loop (and chainable) 
+fromArray:each(function(value: number, index: number?)
+    -- like a for loop
 end)
 
 -- mapping
 
-LinkedList:map(function(value: any, index: number?) : List
+LinkedList:map(function(value: any, index: number?) : LinkedList
     -- combination of a map + filter in one! 
-    -- truthy values get added the new mapped array, falsey values (nil, false) don't
+    -- non-nil values get added the new mapped array, nils don't
 end)
 
-LinkedList:collect(into: {any} | number | string, reducer: function(value, index: number?, into) 
+LinkedList:collect(into: V, reducer: function(value, index: number, into: V) : V
     -- allows you to collect/reduce an array into a single value
     -- reducer function optional; by default you can use returns to
         -- append elements to an {array}, 
@@ -52,20 +50,52 @@ LinkedList:collect(into: {any} | number | string, reducer: function(value, index
         -- and sum numbers
     -- you can use custom logic here and return different values and map them too
 end)
+```
 
+## PairedList Api:
+```luau
+local Lists = require("@alias/Lists")
+local PairedList = Lists.PairedList
 
+local t = {
+	ducks = 3,
+	fs = require("@lune/fs"),
+}
+
+-- constructor
+
+local newList = PairedList.from(t)
+
+-- iterator
+newList:each(function(key, value, index)
+	print(key, value)
+end)
+
+-- mappers
+type PairedListPair<K, V> = { [K]: V }
+local mappedList = newList:map(function(key: K, value, index: number)
+	local newKey = "new" .. tostring(key)
+	local newVal = {index, value}
+	return {[newKey] = newVal} -- note that PairedListPairs must be used in place of multiple returns in most PairedList Api.
+end
+
+local mappedListValues = newList:map_values(function(key: K, value, index: number)
+	local newVal = {index, value}
+	return newVal
+end
 
 ```
 
-##
+## examples
 ```luau
-local List = require("@pkg/Lists")
+local Lists = require("@alias/Lists")
+local List, PairedList = Lists.List, Lists.PairedList
 
 local matches = List.new("car", "door", ".luaurc", "from", "cat", "carlos", "firefly.luau", "listing", "catching", "caching", "dogathan", "meow")
     :match("^ca", "luau$", "^d", "ing$", "ow"):pp()
     :map(function(value: string)
           return value .. if not value:match("luau") then ".luau" else ""
-    end):print():collect({})
+    end):pp():array()
 print(matches)
 ```
 ### output!
@@ -117,8 +147,10 @@ end)
 ## Install
 just `clone the repo` (or copy and paste the main file), move files to your package manager directory, and just 
 ```luau
-local List = require("@alias/Lists")
+local Lists = require("@alias/Lists")
+local List, PairedList = Lists.List, Lists.PairedList
 type List = List.List
+type PairedList = List.PairedList
 -- and you should be all set
 ```
 

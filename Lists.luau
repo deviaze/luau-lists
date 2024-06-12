@@ -1,7 +1,7 @@
 --!strict
 --!nolint LocalShadow
 
-local tf, ptf = require('tf')
+local tf, ptf = require('libraries/tf')
 
 --- Parent class for custom typed Arrays and List datatypes 
 local ArrayList = {}
