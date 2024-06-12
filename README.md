@@ -12,7 +12,7 @@ Yep, a perfectly safe, healthy, and actually relatively typesafe pure Luau Typed
 - let me know how y'all like dependency management so i can figure out ez deployment
 
 ## api
-```lua
+```luau
 -- creating:
 local newList = List.new(1, "all", "values", function() return "ok" end), "end")
 local fromArray = List.from({1, 2, 3, 4, 5})
@@ -58,7 +58,7 @@ end)
 ```
 
 ##
-```lua
+```luau
 local List = require("@pkg/Lists")
 
 local matches = List.new("car", "door", ".luaurc", "from", "cat", "carlos", "firefly.luau", "listing", "catching", "caching", "dogathan", "meow")
@@ -100,7 +100,7 @@ catching.luau, caching.luau, dogathan.luau, meow.luau]
 }
 ```
 ## irl uses?:
-```lua
+```luau
 -- usage example with Lune runtime??
 local fs = require("@lune/fs")
 local process = require("@lune/process")
@@ -116,7 +116,7 @@ end)
 
 ## Install
 just `clone the repo` (or copy and paste the main file), move files to your package manager directory, and just 
-```lua
+```luau
 local List = require("@alias/Lists")
 type List = List.List
 -- and you should be all set
